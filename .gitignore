@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit (secrets locaux)
+.streamlit/secrets.toml
+
+# Systeme
+.DS_Store
+Thumbs.db
+desktop.ini
