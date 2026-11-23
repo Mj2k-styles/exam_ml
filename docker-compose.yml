@@ -1,0 +1,13 @@
+# Déploiement sur le serveur : l'application Streamlit.
+# Le reverse proxy HTTPS (Caddy) du serveur la sert sur exam.jdlc-mikemy.tech via le réseau « mediconnect_default ».
+services:
+  exam-app:
+    build: .
+    container_name: exam-app
+    restart: unless-stopped
+    networks: [web]
+
+networks:
+  web:
+    name: mediconnect_default
+    external: true

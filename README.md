@@ -39,3 +39,17 @@ streamlit run app.py
 ```
 
 Les modèles `.joblib` sont produits par les notebooks. Après une modification d'un notebook, il faut le réexécuter en entier pour les mettre à jour.
+
+## Déploiement
+
+L'application est en ligne sur **https://exam.jdlc-mikemy.tech**.
+
+Elle tourne dans un conteneur Docker (`Dockerfile`, `docker-compose.yml`) sur le réseau `mediconnect_default` du serveur. Le reverse proxy Caddy du serveur la sert en HTTPS grâce au fichier `exam.caddy`, copié dans `/root/MediConnect/docker/sites/`.
+
+Mettre à jour après un `git push` :
+
+```bash
+cd /root/exam_ml
+git pull
+docker compose up -d --build
+```

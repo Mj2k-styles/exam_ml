@@ -1,0 +1,8 @@
+*
+!app.py
+!requirements.txt
+!.streamlit
+!*.joblib
+!Raisin_Dataset.xlsx
+!wine_dataset.csv
+!wholesale_customers_dataset.csv
