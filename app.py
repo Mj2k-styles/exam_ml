@@ -108,12 +108,31 @@ def predire_classe(clust, valeurs):
 
 
 # ---------------------------------------------------------------- Barre latérale
+# Vidéo de présentation : l'entrée n'apparaît que sur le serveur (VIDEO_URL fourni)
+# et une fois le fichier vidéo déposé dans le dossier video/.
+VIDEO_URL = os.environ.get("VIDEO_URL")
+VIDEO_OK = bool(VIDEO_URL) and (BASE / "video" / Path(VIDEO_URL).name).is_file()
+VIDEO = "🎬 Vidéo de présentation"
+
 with st.sidebar:
     st.header("Dataset")
-    name = st.radio("Choisir un dataset", list(DATASETS), label_visibility="collapsed")
-    cfg = DATASETS[name]
-    st.markdown(cfg["desc"])
-    st.caption(f"Source : [UCI Machine Learning Repository]({cfg['source']})")
+    name = st.radio("Choisir un dataset", list(DATASETS) + ([VIDEO] if VIDEO_OK else []),
+                    label_visibility="collapsed")
+    if name == VIDEO:
+        st.markdown("Présentation des notebooks **Wine** et **Wholesale customers**, "
+                    "puis démonstration de l'application.")
+    else:
+        cfg = DATASETS[name]
+        st.markdown(cfg["desc"])
+        st.caption(f"Source : [UCI Machine Learning Repository]({cfg['source']})")
+
+# ---------------------------------------------------------------- Page vidéo
+if name == VIDEO:
+    st.title("Vidéo de présentation")
+    st.write("Explication du code des notebooks (4 min chacun), puis démonstration de l'application (2 min).")
+    st.video(VIDEO_URL)
+    st.markdown(f"[⬇️ Télécharger la vidéo]({VIDEO_URL})")
+    st.stop()
 
 df = get_data(name)
 pca_pipe, clust = get_models(name)
@@ -132,21 +151,8 @@ proj_norm["Cluster"] = [clust["noms_classes"][c] for c in partition]
 
 st.title(f"PCA et clustering : {name}")
 
-# Vidéo de présentation : l'onglet n'apparaît que sur le serveur (VIDEO_URL fourni)
-# et une fois le fichier vidéo déposé dans le dossier video/.
-VIDEO_URL = os.environ.get("VIDEO_URL")
-VIDEO_OK = bool(VIDEO_URL) and (BASE / "video" / Path(VIDEO_URL).name).is_file()
-
-noms_onglets = [f"Prédire un {cfg['unit']}", "Prédiction multiple", "Analyse PCA", "Clustering", "Données"]
-onglets = st.tabs(noms_onglets + (["🎬 Vidéo de présentation"] if VIDEO_OK else []))
-tab_pred, tab_multi, tab_pca, tab_clust, tab_data = onglets[:5]
-
-if VIDEO_OK:
-    with onglets[5]:
-        st.subheader("Vidéo de présentation")
-        st.write("Explication du code des notebooks, puis démonstration de l'application.")
-        st.video(VIDEO_URL)
-        st.markdown(f"[⬇️ Télécharger la vidéo]({VIDEO_URL})")
+tab_pred, tab_multi, tab_pca, tab_clust, tab_data = st.tabs(
+    [f"Prédire un {cfg['unit']}", "Prédiction multiple", "Analyse PCA", "Clustering", "Données"])
 
 # ---------------------------------------------------------------- Prédiction
 with tab_pred:

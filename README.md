@@ -56,7 +56,7 @@ docker compose up -d --build
 
 ### Vidéo de présentation
 
-Le fichier vidéo n'est pas dans le dépôt (trop lourd). Il se dépose directement sur le serveur, dans `/root/exam_ml/video/presentation.mp4` : un conteneur nginx (`exam-video`) le sert sur `https://exam.jdlc-mikemy.tech/video/presentation.mp4`, et l'onglet « Vidéo de présentation » apparaît automatiquement dans l'application dès que le fichier est présent.
+Le fichier vidéo n'est pas dans le dépôt (trop lourd). Il se dépose directement sur le serveur, dans `/root/exam_ml/video/presentation.mp4` : un conteneur nginx (`exam-video`) le sert sur `https://exam.jdlc-mikemy.tech/video/presentation.mp4`, et l'entrée « 🎬 Vidéo de présentation » apparaît automatiquement dans la barre latérale de l'application dès que le fichier est présent.
 
 ```bash
 scp presentation.mp4 jeanprod:/root/exam_ml/video/
