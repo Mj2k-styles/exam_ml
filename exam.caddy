@@ -5,6 +5,12 @@ exam.jdlc-mikemy.tech {
 		X-Content-Type-Options "nosniff"
 		-Server
 	}
+	# Vidéo de présentation (fichier statique)
+	handle /video/* {
+		reverse_proxy exam-video:80
+	}
 	# Application Streamlit (WebSockets compris)
-	reverse_proxy exam-app:8501
+	handle {
+		reverse_proxy exam-app:8501
+	}
 }

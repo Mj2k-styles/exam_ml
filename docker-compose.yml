@@ -1,10 +1,23 @@
-# Déploiement sur le serveur : l'application Streamlit.
-# Le reverse proxy HTTPS (Caddy) du serveur la sert sur exam.jdlc-mikemy.tech via le réseau « mediconnect_default ».
+# Déploiement sur le serveur : l'application Streamlit et la vidéo de présentation.
+# Le reverse proxy HTTPS (Caddy) du serveur les sert sur exam.jdlc-mikemy.tech via le réseau « mediconnect_default ».
 services:
   exam-app:
     build: .
     container_name: exam-app
     restart: unless-stopped
+    environment:
+      VIDEO_URL: https://exam.jdlc-mikemy.tech/video/presentation.mp4
+    volumes:
+      # L'application vérifie seulement que la vidéo est présente pour afficher l'onglet
+      - ./video:/app/video:ro
+    networks: [web]
+
+  exam-video:
+    image: nginx:alpine
+    container_name: exam-video
+    restart: unless-stopped
+    volumes:
+      - ./video:/usr/share/nginx/html/video:ro
     networks: [web]
 
 networks:

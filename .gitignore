@@ -14,3 +14,6 @@ venv/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Vidéo de présentation (fichier lourd, déposé directement sur le serveur)
+video/
