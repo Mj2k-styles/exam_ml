@@ -1,6 +1,7 @@
-"""Application Streamlit : PCA et clustering (K-Means) sur 3 datasets UCI.
+"""Application Streamlit : PCA et clustering sur 4 datasets UCI.
 
-Datasets : Raisin, Wine, Wholesale customers.
+Datasets : Raisin, Wine, Wholesale customers (avec catégorie connue) et Clients télécom
+(segmentation pure, sans catégorie : le notebook Customer_Segmentation).
 Lancer avec :  streamlit run app.py
 """
 import os
@@ -35,6 +36,10 @@ def load_wholesale():
     df = pd.read_csv(BASE / "wholesale_customers_dataset.csv")
     df["Class"] = df["Channel"].map({1: "Horeca", 2: "Retail"})
     return df.drop(columns=["Channel", "Region"])
+
+
+def load_telecom():
+    return pd.read_csv(BASE / "Customer_dataset.csv")
 
 
 DATASETS = {
@@ -86,6 +91,21 @@ DATASETS = {
                   "concordance avec les vrais canaux.",
         source="https://archive.ics.uci.edu/dataset/292/wholesale+customers",
     ),
+    # Notebook Customer_Segmentation : pas de catégorie connue, donc pas de modèle PCA + régression
+    # logistique ; la PCA (données normalisées) sert seulement à visualiser les classes.
+    "Clients télécom": dict(
+        load=load_telecom, pca_model=None, clust_model="customer_clustering.joblib",
+        unit="client", target=None,
+        desc="3 150 clients d'un opérateur télécom, décrits par 12 variables d'utilisation (appels, "
+             "SMS, durée d'abonnement, valeur client…). **Aucune catégorie connue** : on fait une "
+             "segmentation pure (clustering).",
+        pca_txt=None,
+        clust_txt="Meilleur modèle : la **CAH** (silhouette ≈ 0,89 contre ≈ 0,78 pour K-Means). Elle sépare "
+                  "158 clients **quasi inactifs** (≈ 2 secondes d'utilisation, valeur client ≈ 8), nommés "
+                  "« non fidèles », des 2 992 autres clients actifs (≈ 4 700 secondes, valeur client "
+                  "≈ 495), nommés « fidèles ».",
+        source="https://archive.ics.uci.edu/dataset/563/iranian+churn+dataset",
+    ),
 }
 
 
@@ -97,7 +117,8 @@ def get_data(name):
 @st.cache_resource
 def get_models(name):
     cfg = DATASETS[name]
-    return joblib.load(BASE / cfg["pca_model"]), joblib.load(BASE / cfg["clust_model"])
+    pca_pipe = joblib.load(BASE / cfg["pca_model"]) if cfg["pca_model"] else None
+    return pca_pipe, joblib.load(BASE / cfg["clust_model"])
 
 
 def predire_classe(clust, valeurs):
@@ -136,23 +157,42 @@ if name == VIDEO:
 
 df = get_data(name)
 pca_pipe, clust = get_models(name)
-FEATURES = list(pca_pipe.feature_names_in_)
-assert FEATURES == clust["variables"], "Les modèles n'utilisent pas les mêmes variables"
-
-# Projection PCA (standardisation + PCA) de tout le dataset
-proj = pd.DataFrame(pca_pipe[:-1].transform(df[FEATURES]), columns=["PC1", "PC2"])
-proj["Class"] = df["Class"].values
+SUPERVISE = pca_pipe is not None          # False : pas de catégorie connue (Clients télécom)
+FEATURES = list(clust["variables"])
+if SUPERVISE:
+    assert FEATURES == list(pca_pipe.feature_names_in_), "Les modèles n'utilisent pas les mêmes variables"
 
 # Partition du clustering (données normalisées, centroïde le plus proche) et sa PCA de visualisation
 x_norm = normalize(df[FEATURES].values)
 partition = np.array([predire_classe(clust, row) for row in df[FEATURES].values])
-proj_norm = pd.DataFrame(PCA(n_components=2).fit_transform(x_norm), columns=["PC1", "PC2"])
+pca_norm = clust["pca"] if "pca" in clust else PCA(n_components=2).fit(x_norm)
+proj_norm = pd.DataFrame(pca_norm.transform(x_norm), columns=["PC1", "PC2"])
 proj_norm["Cluster"] = [clust["noms_classes"][c] for c in partition]
+
+
+def projeter(X):
+    """Coordonnées (PC1, PC2) dans le plan affiché pour ce dataset."""
+    if SUPERVISE:
+        return pca_pipe[:-1].transform(X)
+    return pca_norm.transform(normalize(np.asarray(X, dtype=float)))
+
+
+# Plan affiché : PCA des données standardisées (vraie catégorie en couleur) ou,
+# sans catégorie connue, PCA des données normalisées (classe trouvée en couleur)
+COULEUR = "Class" if SUPERVISE else "Cluster"
+if SUPERVISE:
+    proj = pd.DataFrame(projeter(df[FEATURES]), columns=["PC1", "PC2"])
+    proj["Class"] = df["Class"].values
+else:
+    proj = proj_norm
 
 st.title(f"PCA et clustering : {name}")
 
-tab_pred, tab_multi, tab_pca, tab_clust, tab_data = st.tabs(
-    [f"Prédire un {cfg['unit']}", "Prédiction multiple", "Analyse PCA", "Clustering", "Données"])
+noms_onglets = ([f"Prédire un {cfg['unit']}", "Prédiction multiple"]
+                + (["Analyse PCA"] if SUPERVISE else []) + ["Clustering", "Données"])
+onglets = dict(zip(noms_onglets, st.tabs(noms_onglets)))
+tab_pred, tab_multi = onglets[noms_onglets[0]], onglets["Prédiction multiple"]
+tab_clust, tab_data = onglets["Clustering"], onglets["Données"]
 
 # ---------------------------------------------------------------- Prédiction
 with tab_pred:
@@ -175,24 +215,26 @@ with tab_pred:
             )
 
     x_new = pd.DataFrame([values])[FEATURES]
-    pc_new = pca_pipe[:-1].transform(x_new)[0]
-    proba = pca_pipe.predict_proba(x_new)[0]
-    pred = pca_pipe.classes_[proba.argmax()]
+    pc_new = projeter(x_new)[0]
     cluster_new = predire_classe(clust, x_new.values[0])
 
     c1, c2 = st.columns([1, 2])
     with c1:
-        st.metric(f"{cfg['target'].capitalize()} prédit(e) (PCA + régression logistique)", pred,
-                  f"{proba.max():.0%} de confiance", delta_color="off")
-        st.dataframe(
-            pd.DataFrame({cfg["target"].capitalize(): pca_pipe.classes_, "Probabilité": proba})
-            .style.format({"Probabilité": "{:.1%}"}),
-            hide_index=True,
-        )
+        if SUPERVISE:
+            proba = pca_pipe.predict_proba(x_new)[0]
+            pred = pca_pipe.classes_[proba.argmax()]
+            st.metric(f"{cfg['target'].capitalize()} prédit(e) (PCA + régression logistique)", pred,
+                      f"{proba.max():.0%} de confiance", delta_color="off")
+            st.dataframe(
+                pd.DataFrame({cfg["target"].capitalize(): pca_pipe.classes_, "Probabilité": proba})
+                .style.format({"Probabilité": "{:.1%}"}),
+                hide_index=True,
+            )
         st.metric(f"Classe {clust['modele']} (clustering)", f"Classe {cluster_new}")
-        st.info(f"C'est un {clust['noms_classes'][cluster_new]}.")
+        nom = clust["noms_classes"][cluster_new]
+        st.info(f"C'est un {nom if nom.startswith(cfg['unit']) else cfg['unit'] + ' ' + nom}.")
     with c2:
-        fig = px.scatter(proj, x="PC1", y="PC2", color="Class", opacity=0.45,
+        fig = px.scatter(proj, x="PC1", y="PC2", color=COULEUR, opacity=0.45,
                          title=f"Position du {cfg['unit']} saisi dans le plan (PC1, PC2)")
         fig.add_scatter(x=[pc_new[0]], y=[pc_new[1]], mode="markers", name=f"Votre {cfg['unit']}",
                         marker=dict(size=18, symbol="star", color="black",
@@ -232,32 +274,35 @@ def prediction_multiple(fichier):
 
     res = data[valides].copy()
     X_ok = X_up[valides]
-    probas = pca_pipe.predict_proba(X_ok)
-    pcs = pca_pipe[:-1].transform(X_ok)
+    pcs = projeter(X_ok)
     clusters = np.array([predire_classe(clust, row) for row in X_ok.values])
 
-    col_pred = f"{cfg['target'].capitalize()} prédit(e)"
-    res[col_pred] = pca_pipe.classes_[probas.argmax(axis=1)]
-    res["Confiance"] = probas.max(axis=1).round(3)
+    if SUPERVISE:
+        probas = pca_pipe.predict_proba(X_ok)
+        col_pred = f"{cfg['target'].capitalize()} prédit(e)"
+        res[col_pred] = pca_pipe.classes_[probas.argmax(axis=1)]
+        res["Confiance"] = probas.max(axis=1).round(3)
     res["PC1"], res["PC2"] = pcs[:, 0].round(3), pcs[:, 1].round(3)
     res["Classe clustering"] = clusters
     res["Profil clustering"] = [clust["noms_classes"][c] for c in clusters]
 
     st.success(f"{len(res)} {cfg['unit']}(s) prédit(s).")
     c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(f"**{col_pred}**")
-        st.dataframe(res[col_pred].value_counts().rename("Nombre"))
-    with c2:
+    if SUPERVISE:
+        with c1:
+            st.markdown(f"**{col_pred}**")
+            st.dataframe(res[col_pred].value_counts().rename("Nombre"))
+    with (c2 if SUPERVISE else c1):
         st.markdown("**Profil clustering**")
         st.dataframe(res["Profil clustering"].value_counts().rename("Nombre"))
 
-    fig = px.scatter(proj, x="PC1", y="PC2", color="Class", opacity=0.25,
+    fig = px.scatter(proj, x="PC1", y="PC2", color=COULEUR, opacity=0.25,
                      title=f"Les {cfg['unit']}s du fichier dans le plan (PC1, PC2)")
     fig.add_scatter(x=res["PC1"], y=res["PC2"], mode="markers", name="Fichier chargé",
                     marker=dict(size=11, symbol="star", color="black",
                                 line=dict(width=1, color="white")),
-                    text=res[col_pred], hovertemplate="%{text}<extra></extra>")
+                    text=res[col_pred if SUPERVISE else "Profil clustering"],
+                    hovertemplate="%{text}<extra></extra>")
     st.plotly_chart(fig, width="stretch")
 
     st.dataframe(res, width="stretch")
@@ -281,35 +326,38 @@ with tab_multi:
         prediction_multiple(fichier)
 
 # ---------------------------------------------------------------- Analyse PCA
-with tab_pca:
-    scaler, pca = pca_pipe.named_steps["scaler"], pca_pipe.named_steps["pca"]
-    ratio = pca.explained_variance_ratio_
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Variance PC1", f"{ratio[0]:.1%}")
-    m2.metric("Variance PC2", f"{ratio[1]:.1%}")
-    m3.metric("Total (2 composantes)", f"{ratio.sum():.1%}")
+if SUPERVISE:
+    with onglets["Analyse PCA"]:
+        scaler, pca = pca_pipe.named_steps["scaler"], pca_pipe.named_steps["pca"]
+        ratio = pca.explained_variance_ratio_
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Variance PC1", f"{ratio[0]:.1%}")
+        m2.metric("Variance PC2", f"{ratio[1]:.1%}")
+        m3.metric("Total (2 composantes)", f"{ratio.sum():.1%}")
 
-    st.plotly_chart(
-        px.scatter(proj, x="PC1", y="PC2", color="Class", opacity=0.7,
-                   title=f"Les {len(df)} observations projetées sur les 2 premières composantes "
-                         "(données standardisées)"),
-        width="stretch",
-    )
+        st.plotly_chart(
+            px.scatter(proj, x="PC1", y="PC2", color="Class", opacity=0.7,
+                       title=f"Les {len(df)} observations projetées sur les 2 premières composantes "
+                             "(données standardisées)"),
+            width="stretch",
+        )
 
-    z = pd.DataFrame(scaler.transform(df[FEATURES]), columns=FEATURES)
-    corr = pd.DataFrame({pc: [z[f].corr(proj[pc]) for f in FEATURES] for pc in ["PC1", "PC2"]},
-                        index=FEATURES)
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("**Corrélations variables / composantes**")
-        st.dataframe(corr.style.format("{:.2f}").background_gradient(cmap="RdBu", vmin=-1, vmax=1))
-    with c2:
-        st.markdown(cfg["pca_txt"])
+        z = pd.DataFrame(scaler.transform(df[FEATURES]), columns=FEATURES)
+        corr = pd.DataFrame({pc: [z[f].corr(proj[pc]) for f in FEATURES] for pc in ["PC1", "PC2"]},
+                            index=FEATURES)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**Corrélations variables / composantes**")
+            st.dataframe(corr.style.format("{:.2f}").background_gradient(cmap="RdBu", vmin=-1, vmax=1))
+        with c2:
+            st.markdown(cfg["pca_txt"])
 
 # ---------------------------------------------------------------- Clustering
 with tab_clust:
     st.markdown(f"Modèle retenu : **{clust['modele']}** avec **{len(clust['classes'])} classes**, "
-                "entraîné sur les données normalisées (`normalize`) sans utiliser la vraie catégorie.")
+                "entraîné sur les données normalisées (`normalize`) "
+                + ("sans utiliser la vraie catégorie." if SUPERVISE else
+                   "(ce dataset n'a pas de catégorie connue)."))
     c1, c2 = st.columns([2, 1])
     with c1:
         st.plotly_chart(
@@ -326,12 +374,15 @@ with tab_clust:
             width="stretch",
         )
 
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("**Classes trouvées / vraies catégories**")
-        st.dataframe(pd.crosstab(df["Class"], partition, rownames=["Vraie catégorie"],
-                                 colnames=["Classe"]))
-    with c2:
+    if SUPERVISE:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**Classes trouvées / vraies catégories**")
+            st.dataframe(pd.crosstab(df["Class"], partition, rownames=["Vraie catégorie"],
+                                     colnames=["Classe"]))
+        with c2:
+            st.markdown(cfg["clust_txt"])
+    else:
         st.markdown(cfg["clust_txt"])
 
     st.markdown("**Profil moyen de chaque classe**")
