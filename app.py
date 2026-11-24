@@ -100,10 +100,14 @@ DATASETS = {
              "SMS, durée d'abonnement, valeur client…). **Aucune catégorie connue** : on fait une "
              "segmentation pure (clustering).",
         pca_txt=None,
-        clust_txt="Meilleur modèle : la **CAH** (silhouette ≈ 0,89 contre ≈ 0,78 pour K-Means). Elle sépare "
-                  "158 clients **quasi inactifs** (≈ 2 secondes d'utilisation, valeur client ≈ 8), nommés "
-                  "« non fidèles », des 2 992 autres clients actifs (≈ 4 700 secondes, valeur client "
-                  "≈ 495), nommés « fidèles ».",
+        clust_txt="Meilleur modèle : la **CAH** (silhouette ≈ 0,89 contre ≈ 0,78 pour K-Means). Dans le "
+                  "notebook, elle sépare 158 clients **quasi inactifs** (≈ 2 secondes d'utilisation, valeur "
+                  "client ≈ 8), nommés « non fidèles », des 2 992 autres clients actifs (≈ 4 700 secondes, "
+                  "valeur client ≈ 495), nommés « fidèles ».\n\n"
+                  "Ici, chaque client est affecté à la classe du **centroïde le plus proche** (la fonction "
+                  "`predire_classe` du notebook), ce qui permet de classer de nouveaux clients. Cette règle "
+                  "retrouve la partition de la CAH à 99,97 % : un seul client change de classe, d'où "
+                  "**157 / 2 993** sur le graphique au lieu de 158 / 2 992.",
         source="https://archive.ics.uci.edu/dataset/563/iranian+churn+dataset",
     ),
 }
