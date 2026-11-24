@@ -6,7 +6,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY .streamlit .streamlit
-COPY *.joblib Raisin_Dataset.xlsx wine_dataset.csv wholesale_customers_dataset.csv Customer_dataset.csv ./
+COPY *.joblib wine_dataset.csv wheat_seeds_dataset.csv wholesale_customers_dataset.csv Customer_dataset.csv ./
 
 EXPOSE 8501
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true", "--browser.gatherUsageStats=false"]

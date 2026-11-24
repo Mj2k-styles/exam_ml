@@ -1,7 +1,7 @@
 """Application Streamlit : PCA et clustering sur 4 datasets UCI.
 
-Datasets : Raisin, Wine, Wholesale customers (avec catégorie connue) et Clients télécom
-(segmentation pure, sans catégorie : le notebook Customer_Segmentation).
+Datasets : Wine, Wholesale customers (avec catégorie connue), Wheat Seeds et Clients télécom
+(segmentation pure, sans catégorie : notebooks Kmeans_CAH_On_Wheat_Seeds et Customer_Segmentation).
 Lancer avec :  streamlit run app.py
 """
 import os
@@ -22,8 +22,8 @@ st.set_page_config(page_title="Exam ML : PCA et clustering", page_icon="📊", l
 
 # ---------------------------------------------------------------- Chargement des données
 # Même préparation que dans les notebooks : la variable cible 'Class' est en dernière colonne.
-def load_raisin():
-    return pd.read_excel(BASE / "Raisin_Dataset.xlsx")
+def load_wheat():
+    return pd.read_csv(BASE / "wheat_seeds_dataset.csv")
 
 
 def load_wine():
@@ -43,22 +43,6 @@ def load_telecom():
 
 
 DATASETS = {
-    "Raisin": dict(
-        load=load_raisin, pca_model="raisin_pca_model.joblib", clust_model="raisin_clustering.joblib",
-        unit="raisin", target="variété",
-        desc="900 raisins secs de deux variétés (**Kecimen** et **Besni**) décrits par 7 variables "
-             "morphologiques mesurées sur des images.",
-        pca_txt="- **PC1 ≈ la taille** : Area, ConvexArea, Perimeter, MajorAxisLength.\n"
-                "- **PC2 ≈ la forme** : Extent (compact) contre Eccentricity (allongé).\n\n"
-                "Les deux variétés se séparent surtout le long de PC1 : les Besni sont en moyenne "
-                "plus gros que les Kecimen.",
-        clust_txt="Après `normalize`, Area et ConvexArea dominent la norme de chaque raisin : l'information "
-                  "de taille disparaît et il ne reste que la régularité du contour (rapport "
-                  "ConvexArea / Area). Les classes K-Means séparent donc les formes régulières des formes "
-                  "irrégulières, et **ne retrouvent pas les variétés**. La CAH a une meilleure silhouette "
-                  "(≈ 0,90) mais isole seulement 6 raisins atypiques : K-Means a été retenu.",
-        source="https://archive.ics.uci.edu/dataset/850/raisin",
-    ),
     "Wine": dict(
         load=load_wine, pca_model="wine_pca_model.joblib", clust_model="wine_clustering.joblib",
         unit="vin", target="cultivar",
@@ -90,6 +74,21 @@ DATASETS = {
                   "ceux qui dépensent surtout en épicerie (profil Retail), avec environ 75 % de "
                   "concordance avec les vrais canaux.",
         source="https://archive.ics.uci.edu/dataset/292/wholesale+customers",
+    ),
+    # Notebook Kmeans_CAH_On_Wheat_Seeds : pas de catégorie dans le fichier, données brutes (sans normalize)
+    "Wheat Seeds": dict(
+        load=load_wheat, pca_model=None, clust_model="wheat_clustering.joblib",
+        unit="grain", target=None,
+        desc="199 grains de blé (dataset UCI « seeds »), décrits par 7 mesures géométriques obtenues "
+             "par radiographie (aire, périmètre, compacité, longueur, largeur…). La variété n'est pas "
+             "dans le fichier : on fait une **segmentation pure** (clustering).",
+        pca_txt=None,
+        clust_txt="Le notebook compare **K-Means** et **CAH** (liaison moyenne) avec 3 classes, sur les "
+                  "données brutes. K-Means a la meilleure silhouette (≈ 0,473 contre ≈ 0,444) ; les deux "
+                  "partitions regroupent de la même façon 176 grains sur 199 (≈ 88 %). Les classes "
+                  "séparent les grains **grands** (aire ≈ 18,7), **moyens** (≈ 14,7) et **petits** "
+                  "(≈ 12,0) : K-Means a été retenu.",
+        source="https://archive.ics.uci.edu/dataset/236/seeds",
     ),
     # Notebook Customer_Segmentation : pas de catégorie connue, donc pas de modèle PCA + régression
     # logistique ; la PCA (données normalisées) sert seulement à visualiser les classes.
@@ -125,9 +124,15 @@ def get_models(name):
     return pca_pipe, joblib.load(BASE / cfg["clust_model"])
 
 
+def preparer(clust, X):
+    """Données telles que vues par le modèle : normalisées (normalize), sauf pour Wheat Seeds."""
+    X = np.asarray(X, dtype=float)
+    return normalize(X) if clust.get("normalize", True) else X
+
+
 def predire_classe(clust, valeurs):
-    """Même fonction que dans les notebooks : classe du centroïde le plus proche (après normalize)."""
-    obs = normalize(np.asarray(valeurs, dtype=float).reshape(1, -1))
+    """Même fonction que dans les notebooks : classe du centroïde le plus proche."""
+    obs = preparer(clust, np.asarray(valeurs, dtype=float).reshape(1, -1))
     distances = np.linalg.norm(clust["centroides"] - obs, axis=1)
     return clust["classes"][distances.argmin()]
 
@@ -166,8 +171,9 @@ FEATURES = list(clust["variables"])
 if SUPERVISE:
     assert FEATURES == list(pca_pipe.feature_names_in_), "Les modèles n'utilisent pas les mêmes variables"
 
-# Partition du clustering (données normalisées, centroïde le plus proche) et sa PCA de visualisation
-x_norm = normalize(df[FEATURES].values)
+# Partition du clustering (centroïde le plus proche) et sa PCA de visualisation
+NORMALISE = clust.get("normalize", True)
+x_norm = preparer(clust, df[FEATURES].values)
 partition = np.array([predire_classe(clust, row) for row in df[FEATURES].values])
 pca_norm = clust["pca"] if "pca" in clust else PCA(n_components=2).fit(x_norm)
 proj_norm = pd.DataFrame(pca_norm.transform(x_norm), columns=["PC1", "PC2"])
@@ -178,7 +184,7 @@ def projeter(X):
     """Coordonnées (PC1, PC2) dans le plan affiché pour ce dataset."""
     if SUPERVISE:
         return pca_pipe[:-1].transform(X)
-    return pca_norm.transform(normalize(np.asarray(X, dtype=float)))
+    return pca_norm.transform(preparer(clust, X))
 
 
 # Plan affiché : PCA des données standardisées (vraie catégorie en couleur) ou,
@@ -359,14 +365,16 @@ if SUPERVISE:
 # ---------------------------------------------------------------- Clustering
 with tab_clust:
     st.markdown(f"Modèle retenu : **{clust['modele']}** avec **{len(clust['classes'])} classes**, "
-                "entraîné sur les données normalisées (`normalize`) "
+                + ("entraîné sur les données normalisées (`normalize`) " if NORMALISE else
+                   "entraîné sur les données brutes ")
                 + ("sans utiliser la vraie catégorie." if SUPERVISE else
                    "(ce dataset n'a pas de catégorie connue)."))
     c1, c2 = st.columns([2, 1])
     with c1:
         st.plotly_chart(
             px.scatter(proj_norm, x="PC1", y="PC2", color="Cluster", opacity=0.7,
-                       title="Classes trouvées par le clustering (PCA des données normalisées)"),
+                       title="Classes trouvées par le clustering (PCA des données "
+                             + ("normalisées)" if NORMALISE else "brutes)")),
             width="stretch",
         )
     with c2:
