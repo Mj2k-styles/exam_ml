@@ -7,6 +7,8 @@ exam.jdlc-mikemy.tech {
 	}
 	# Vidéo de présentation (fichier statique)
 	handle /video/* {
+		# le navigateur vérifie à chaque fois qu'il a la dernière version de la vidéo
+		header Cache-Control "no-cache"
 		reverse_proxy exam-video:80
 	}
 	# Application Streamlit (WebSockets compris)

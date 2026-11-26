@@ -7,7 +7,12 @@ import streamlit as st
 BASE = Path(__file__).parent
 # La vidéo est servie par le conteneur nginx (exam-video) ; VIDEO_URL est fourni sur le serveur.
 VIDEO_URL = os.environ.get("VIDEO_URL")
-VIDEO_OK = bool(VIDEO_URL) and (BASE / "video" / Path(VIDEO_URL).name).is_file()
+FICHIER = BASE / "video" / Path(VIDEO_URL or "").name
+VIDEO_OK = bool(VIDEO_URL) and FICHIER.is_file()
+if VIDEO_OK:
+    # Numéro de version (date du fichier) : quand la vidéo est remplacée, l'adresse change
+    # et le navigateur ne rejoue pas l'ancienne version gardée en cache.
+    VIDEO_URL = f"{VIDEO_URL}?v={int(FICHIER.stat().st_mtime)}"
 
 with st.sidebar:
     st.page_link("page_analyse.py", label="Retour à l'application", icon="📊")
