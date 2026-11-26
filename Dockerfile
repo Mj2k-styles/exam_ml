@@ -4,7 +4,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+COPY app.py page_analyse.py page_video.py ./
 COPY .streamlit .streamlit
 COPY *.joblib wine_dataset.csv wheat_seeds_dataset.csv wholesale_customers_dataset.csv Customer_dataset.csv ./
 

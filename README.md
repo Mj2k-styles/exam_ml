@@ -20,7 +20,7 @@ Réduction de dimension (PCA) et clustering (K-Means, CAH) sur quatre jeux de do
   4. Sauvegarde des modèles utilisés par l'application.
 - `Kmeans_CAH_On_Wheat_Seeds_Dataset.ipynb` : PCA à 2 composantes pour visualiser, K-Means (méthode du coude, silhouette) puis CAH (dendrogramme, silhouette) et comparaison des deux modèles (silhouettes, tableau croisé des partitions). Le K-Means, meilleur modèle, sépare les grains grands, moyens et petits ; il est déployé dans l'application.
 - `Customer_Segmentation.ipynb` : segmentation des clients télécom (normalisation, PCA à 2 composantes pour visualiser, K-Means et CAH, comparaison des silhouettes, profil des classes). Le meilleur modèle, la CAH, sépare les clients « fidèles » des clients « non fidèles » ; il est déployé dans l'application Streamlit (il l'était auparavant avec Gradio).
-- `app.py` : l'application Streamlit.
+- `app.py` : point d'entrée de l'application Streamlit, avec deux pages : `page_analyse.py` (les datasets) et `page_video.py` (la vidéo de présentation, à l'adresse `/video`).
 - `*_pca_model.joblib` : standardisation, PCA à 2 composantes et régression logistique (prédiction de la catégorie).
 - `*_clustering.joblib` : centroïdes et noms des classes du meilleur modèle de clustering (K-Means pour Wine, Wholesale et Wheat Seeds, CAH pour les clients télécom).
 
@@ -59,7 +59,7 @@ docker compose up -d --build
 
 ### Vidéo de présentation
 
-Le fichier vidéo n'est pas dans le dépôt (trop lourd). Il se dépose directement sur le serveur, dans `/root/exam_ml/video/presentation.mp4` : un conteneur nginx (`exam-video`) le sert sur `https://exam.jdlc-mikemy.tech/video/presentation.mp4`, et l'entrée « 🎬 Vidéo de présentation » apparaît automatiquement dans la barre latérale de l'application dès que le fichier est présent.
+Le fichier vidéo n'est pas dans le dépôt (trop lourd). Il se dépose directement sur le serveur, dans `/root/exam_ml/video/presentation.mp4` : un conteneur nginx (`exam-video`) le sert sur `https://exam.jdlc-mikemy.tech/video/presentation.mp4`, et elle est présentée sur sa propre page, **https://exam.jdlc-mikemy.tech/video**, accessible aussi par le lien « Vidéo de présentation » de la barre latérale.
 
 ```bash
 scp presentation.mp4 jeanprod:/root/exam_ml/video/

@@ -1,5 +1,7 @@
 *
 !app.py
+!page_analyse.py
+!page_video.py
 !requirements.txt
 !.streamlit
 !*.joblib
